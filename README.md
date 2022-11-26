@@ -1,34 +1,26 @@
-#Running
+# Description
 
-### Frontend
+The backend of Channel Builder.
 
-Deploy to S3 and cloudfront
-
-### Backend
+# Running
 
 Use ansible to setup the server...  Then:
 
 docker-compose -f production-docker-compose.yml up -d
 
-## Building
-
-### Frontend
-
-Install sass by running `npm install sass` in the frontend directory.  Then run `make` in the frontend directory.
-
-### Backend
+# Building
 
 Run in the docker folder: `./build_backend_container.sh`
 
 Then push the resulting container to docker hub so you can pull it back down with the `production-docker-compose.yml`.
 
-## Backing Up and Restoring the Database
+# Backing Up and Restoring the Database
 
-### Backup
+## Backup
 
 `docker-compose -f production-docker-compose.yml exec db pg_dump roku_channel_builder -U postgres > ~/db_backup`
 
-### Restore
+## Restore
 
 First modify the backup file you're going to restore, add the following to the top:
 
@@ -50,9 +42,7 @@ Remove the backup file from the container:
 
 `rm /tmp/db_backup`
 
-## Testing
-
-### Backend
+# Testing
 
 There are docker compose files setup to simplify testing of the backend.  You'll need to have secrets files in the docker directory: db_password.secret, smtp_server.secret, smtp_port.secret, smtp_username.secret, smtp_password.secret, and email_from.secret.  These are just plaintext - do not commit them into git.
 
@@ -65,8 +55,3 @@ Run `docker-compose -f testing-docker-compose.yml up -d` from the docker directo
 Browse to the FRONTEND_LOC you set in a browser.
 
 There's also a (currently very partial) backend_tester python script.
-
-## Credits
-
-* Icons made by https://www.freepik.com from https://www.flaticon.com
-* Background image, salzburg.jpg, by Tom Mrazek: https://www.flickr.com/photos/tommrazek/31119289340
