@@ -120,6 +120,7 @@ pub fn build_filters(params: APIParams, cors_origins: Vec<String>, startup_time:
                     .or(api_add_library_entry_fe(params.clone()))
                     .or(api_remove_library_entry_fe(params.clone()))
                     .or(api_create_library_fe(params.clone()))
+                    .or(api_remove_library_fe(params.clone()))
             )
         )
         .recover(api_handlers::handle_rejection)
@@ -777,6 +778,26 @@ APIDocs!{
             .and(validate_session(SessType::Frontend, params))
             .and(get_form::<models::CreateLibraryForm>())
             .and_then(api_handlers::create_library)
+    }
+}
+
+APIDocs!{
+    Desc: "Remove a private library owned by the user",
+    URL: APIPathV1!("remove_library_fe"),
+    Sess: APISessType!(FRONTEND),
+    Method: APIMethod!(DELETE),
+    CORS: APICORS!(true),
+    Data: APIDATA!("library_id integer"),
+
+    fn api_remove_library_fe(params: APIParams)
+        -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone
+    {
+        api_v1_path("remove_library_fe")
+            .and(warp::delete())
+            .and(add_in(params.clone()))
+            .and(validate_session(SessType::Frontend, params))
+            .and(warp::query::<models::RemoveLibraryQuery>())
+            .and_then(api_handlers::remove_library)
     }
 }
 }

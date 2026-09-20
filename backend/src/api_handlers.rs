@@ -972,3 +972,21 @@ pub async fn create_library(params: APIParams, sess_info: (String, i32),
         Err(err) => Err(reject::custom(Rejections::from(err))),
     }
 }
+
+pub async fn remove_library(params: APIParams, sess_info: (String, i32),
+        query: models::RemoveLibraryQuery)
+    -> Result<impl Reply, Rejection>
+{
+    trace!("Beginning remove_library");
+    let (_sess_key, user_id) = sess_info;
+
+    match params.db.please(db::Action::RemoveLibrary {
+        user_id,
+        library_id: query.library_id,
+    }).await {
+        Ok(Response::Empty) => Ok(warp::reply::html("OK")),
+        Ok(resp) => Err(reject::custom(Rejections::db_api_err("RemoveLibrary", resp))),
+        Err(DBError::LibraryAccessDenied) => Err(reject::custom(Rejections::LibraryAccessDenied)),
+        Err(err) => Err(reject::custom(Rejections::from(err))),
+    }
+}

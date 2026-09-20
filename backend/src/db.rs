@@ -156,6 +156,7 @@ pub enum Action {
     AddLibraryEntry { user_id: i32, library_id: i32, name: String, url: String, media_type: String, thumbnail_url: Option<String> },
     RemoveLibraryEntry { user_id: i32, entry_id: i32 },
     CreateLibrary { user_id: i32, name: String },
+    RemoveLibrary { user_id: i32, library_id: i32 },
     Shutdown,
 }
 
@@ -290,6 +291,8 @@ impl Db {
                     Self::remove_library_entry(&dat, user_id, entry_id),
                 Action::CreateLibrary { user_id, name } =>
                     Self::create_library(&dat, user_id, name),
+                Action::RemoveLibrary { user_id, library_id } =>
+                    Self::remove_library(&dat, user_id, library_id),
                 Action::Shutdown =>
                     { keep_going = false; Ok(Response::Shutdown) },
             };
@@ -875,6 +878,26 @@ impl Db {
 
         diesel::insert_into(library::table)
             .values(&new_lib)
+            .execute(&dat.db_conn)?;
+
+        Ok(Response::Empty)
+    }
+
+    fn remove_library(dat: &InThreadData, user_id: i32, library_id: i32)
+        -> Result<Response, DBError>
+    {
+        // Only the owner may delete a library, and the global library
+        // (no owner) can never be deleted through the API.
+        let lib = lib_dsl
+            .filter(library::id.eq(library_id))
+            .first::<db_models::QueryLibrary>(&dat.db_conn)
+            .map_err(|_| DBError::LibraryAccessDenied)?;
+        if lib.is_global || lib.owner_user_id != Some(user_id) {
+            return Err(DBError::LibraryAccessDenied);
+        }
+
+        // Deleting the library cascades to its entries (FK ON DELETE CASCADE)
+        diesel::delete(lib_dsl.filter(library::id.eq(library_id)))
             .execute(&dat.db_conn)?;
 
         Ok(Response::Empty)

@@ -72,3 +72,8 @@ pub struct RemoveLibraryEntryQuery {
 pub struct CreateLibraryForm {
     pub name: String,
 }
+
+#[derive(Debug,Deserialize,Serialize,Clone)]
+pub struct RemoveLibraryQuery {
+    pub library_id: i32,
+}
