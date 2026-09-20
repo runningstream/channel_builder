@@ -54,4 +54,4 @@ Run `docker-compose -f testing-docker-compose.yml up -d` from the docker directo
 
 Browse to the FRONTEND_LOC you set in a browser.
 
-There's also a (currently very partial) backend_tester python script.
+There's also a `backend_tester` python script (`tester.py`) that drives the channel and library endpoints. Config is env-overridable (`RS_TEST_HOST`, `RS_TEST_API_PORT`, `RS_TEST_FRONTEND_PORT`, `RS_TEST_REFERER_HOST`, `RS_TEST_USERNAME`, `RS_TEST_PASSWORD`); defaults target the dev stack. The library section runs a full ownership matrix (visibility, `can_edit` flags, owner CRUD, cross-user 403s, global-library immutability) with two throwaway accounts and deletes the test library it creates, so it's safe to point at a dev DB. Set `RS_TEST_SKIP_LIBRARY=1` to run just the channel tests.

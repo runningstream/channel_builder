@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 
+import os
+import uuid
+
 import requests
 import json
 import logging
 
 class ChannelBuilderTester:
     def __init__(self, host, api_port, frontend_port,
-            fresh_username, fresh_password, use_https = False
+            fresh_username, fresh_password, use_https = False,
+            referer_host = None
         ):
         self.sess_keys = dict()
         self.use_https = use_https
@@ -15,10 +19,14 @@ class ChannelBuilderTester:
         self.username = fresh_username
         self.password = fresh_password
         self.frontend_port = frontend_port
+        # The referer/origin the backend accepts (its CORS allow-list).
+        # It may differ from the host we actually connect to (e.g. the API
+        # on loopback, but a referer on a LAN IP).
+        self.referer_host = referer_host if referer_host is not None else host
 
     def get_origin(self):
         http_trail = "s" if self.use_https else ""
-        return f"http{ http_trail }://{ self.host }:{ self.frontend_port }"
+        return f"http{ http_trail }://{ self.referer_host }:{ self.frontend_port }"
 
     def get_referer(self):
         return f"{ self.get_origin() }/"
@@ -119,7 +127,7 @@ class ChannelBuilderTester:
         return req.status_code == 200
 
     def get_active_channel_name_fe(self):
-        sess_key = self.get_sess_key_di()
+        sess_key = self.get_sess_key_fe()
         headers = {
             "Cookie": sess_key,
             "referer": self.get_referer(),
@@ -210,17 +218,209 @@ class ChannelBuilderTester:
         print(req.text)
         return req.status_code == 200
 
+    # ------------------------------------------------------------------
+    # Library endpoints.
+    #
+    # Unlike the channel helpers above (which return a bool), these return
+    # the raw HTTP status code so callers can tell a success (200) apart
+    # from a deliberate ownership denial (403). List payloads are stashed
+    # on self.last_libraries / self.last_library_entries for inspection.
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _parse_json_list(req):
+        # The list endpoints double-encode: a JSON string wrapping a JSON array.
+        try:
+            data = req.json()
+            if isinstance(data, str):
+                data = json.loads(data)
+            return data if isinstance(data, list) else []
+        except Exception:
+            return []
+
+    def get_libraries_fe(self):
+        sess_key = self.get_sess_key_fe()
+        headers = { "referer": self.get_referer(), "Cookie": sess_key, }
+        req = requests.get(self.get_url("get_libraries_fe"), headers = headers)
+        print(req.text)
+        self.last_libraries = self._parse_json_list(req)
+        return req.status_code
+
+    def get_library_entries_fe(self, library_id):
+        sess_key = self.get_sess_key_fe()
+        headers = { "referer": self.get_referer(), "Cookie": sess_key, }
+        req = requests.get(
+            self.get_url(f"get_library_entries_fe?library_id={ library_id }"),
+            headers = headers,
+        )
+        print(req.text)
+        self.last_library_entries = self._parse_json_list(req)
+        return req.status_code
+
+    def add_library_entry_fe(self, library_id, name, url, media_type = "video",
+            thumbnail_url = None):
+        sess_key = self.get_sess_key_fe()
+        data = {
+            "library_id": library_id,
+            "name": name,
+            "url": url,
+            "media_type": media_type,
+        }
+        if thumbnail_url is not None:
+            data["thumbnail_url"] = thumbnail_url
+        headers = { "referer": self.get_referer(), "Cookie": sess_key, }
+        req = requests.post(self.get_url("add_library_entry_fe"),
+            headers = headers,
+            data = data,
+        )
+        print(req.text)
+        return req.status_code
+
+    def remove_library_entry_fe(self, entry_id):
+        sess_key = self.get_sess_key_fe()
+        headers = { "referer": self.get_referer(), "Cookie": sess_key, }
+        req = requests.delete(
+            self.get_url(f"remove_library_entry_fe?entry_id={ entry_id }"),
+            headers = headers,
+        )
+        print(req.text)
+        return req.status_code
+
+    def create_library_fe(self, name):
+        sess_key = self.get_sess_key_fe()
+        data = { "name": name, }
+        headers = { "referer": self.get_referer(), "Cookie": sess_key, }
+        req = requests.post(self.get_url("create_library_fe"),
+            headers = headers,
+            data = data,
+        )
+        print(req.text)
+        return req.status_code
+
+    def remove_library_fe(self, library_id):
+        sess_key = self.get_sess_key_fe()
+        headers = { "referer": self.get_referer(), "Cookie": sess_key, }
+        req = requests.delete(
+            self.get_url(f"remove_library_fe?library_id={ library_id }"),
+            headers = headers,
+        )
+        print(req.text)
+        return req.status_code
+
+
+def run_library_suite(owner, other):
+    """Exercise the library endpoints across two users to prove ownership.
+
+    ``owner`` and ``other`` are ChannelBuilderTester instances for two
+    distinct, already-authenticated accounts. Runs the full matrix
+    (visibility, can_edit flags, owner CRUD, cross-user denials, and the
+    global library being immutable to everyone), then deletes the test
+    library it created. Returns True only if every check passes.
+    """
+    results = []
+    def check(desc, ok):
+        results.append(bool(ok))
+        print(f"    { 'PASS' if ok else 'FAIL' }: { desc }")
+
+    # 1. Owner creates a private library
+    lib_name = f"tester-lib-{ uuid.uuid4().hex[:8] }"
+    check("owner create_library_fe", owner.create_library_fe(lib_name) == 200)
+    owner.get_libraries_fe()
+    own = next((l for l in owner.last_libraries if l.get("name") == lib_name), None)
+    check("owner sees own library", own is not None)
+    check("own library has can_edit True", bool(own and own.get("can_edit") is True))
+    check("own library has an owner_user_id", bool(own and own.get("owner_user_id") is not None))
+    lib_id = own["id"] if own else -1
+
+    # 2. The other user cannot even see the owner's library
+    other.get_libraries_fe()
+    check("other does NOT see owner's library",
+          all(l.get("name") != lib_name for l in other.last_libraries))
+
+    # 3. The global library is visible to everyone, editable by nobody
+    owner.get_libraries_fe()
+    glob = next((l for l in owner.last_libraries if l.get("is_global")), None)
+    check("global library present (owner view)", glob is not None)
+    check("global library has can_edit False (owner)",
+          bool(glob and glob.get("can_edit") is False))
+    other.get_libraries_fe()
+    glob2 = next((l for l in other.last_libraries if l.get("is_global")), None)
+    check("global library has can_edit False (other)",
+          bool(glob2 and glob2.get("can_edit") is False))
+    glob_id = glob["id"] if glob else 1
+    check("other can read global entries", other.get_library_entries_fe(glob_id) == 200)
+    g_entry_id = (other.last_library_entries[0]["id"]
+                  if other.last_library_entries else -1)
+
+    # 4. Owner adds an entry to their own library
+    entry_name = f"tester-entry-{ uuid.uuid4().hex[:8] }"
+    check("owner add_library_entry_fe to own lib",
+          owner.add_library_entry_fe(lib_id, entry_name,
+              "https://example.com/test.mp4", "video") == 200)
+    owner.get_library_entries_fe(lib_id)
+    added = next((e for e in owner.last_library_entries
+                  if e.get("name") == entry_name), None)
+    check("owner sees the added entry", added is not None)
+    entry_id = added["id"] if added else -1
+
+    # 5. The other user is denied (403) on the owner's library
+    check("other add to owner's lib -> 403",
+          other.add_library_entry_fe(lib_id, "intruder-entry",
+              "https://example.com/x.mp4", "video") == 403)
+    check("other remove owner's entry -> 403",
+          other.remove_library_entry_fe(entry_id) == 403)
+    check("other read owner's entries -> 403",
+          other.get_library_entries_fe(lib_id) == 403)
+    check("other delete owner's library -> 403",
+          other.remove_library_fe(lib_id) == 403)
+
+    # 6. Nobody can modify the global library
+    check("owner add to global lib -> 403",
+          owner.add_library_entry_fe(glob_id, "global-intruder",
+              "https://example.com/g.mp4", "video") == 403)
+    check("other remove global entry -> 403",
+          other.remove_library_entry_fe(g_entry_id) == 403)
+    check("owner delete global lib -> 403",
+          owner.remove_library_fe(glob_id) == 403)
+
+    # 7. Owner removes their own entry, then their own library
+    check("owner remove own entry",
+          owner.remove_library_entry_fe(entry_id) == 200)
+    owner.get_library_entries_fe(lib_id)
+    check("owner's entry is gone",
+          all(e.get("name") != entry_name for e in owner.last_library_entries))
+    check("owner remove_library_fe own lib",
+          owner.remove_library_fe(lib_id) == 200)
+    owner.get_libraries_fe()
+    check("owner's library is gone",
+          all(l.get("name") != lib_name for l in owner.last_libraries))
+
+    passed = sum(results)
+    print(f"  library suite: { passed }/{ len(results) } checks passed")
+    return all(results)
+
 
 if __name__ == "__main__":
-    host = "192.168.86.11"
-    api_port = "3031"
-    frontend_port = "5173"
-    username = "runningstreamllc+test10@gmail.com"
-    password = "123456"
+    # Config is env-overridable so the same script works against the dev
+    # box and other deployments. Defaults target the dev stack: the API on
+    # loopback, with a referer host on the backend's CORS allow-list.
+    host = os.environ.get("RS_TEST_HOST", "127.0.0.1")
+    api_port = os.environ.get("RS_TEST_API_PORT", "10101")
+    frontend_port = os.environ.get("RS_TEST_FRONTEND_PORT", "10102")
+    referer_host = os.environ.get("RS_TEST_REFERER_HOST", "192.168.122.34")
+    username = os.environ.get("RS_TEST_USERNAME", "runningstreamllc+test10@gmail.com")
+    password = os.environ.get("RS_TEST_PASSWORD", "123456")
 
-    cust_chan_content = open("test_channel_nice.txt", "r").read()
+    # Channel content fixture: prefer the (gitignored) test_channel_nice.txt,
+    # fall back to the tracked new_channel.json so a fresh checkout runs.
+    here = os.path.dirname(os.path.abspath(__file__))
+    nice_path = os.path.join(here, "test_channel_nice.txt")
+    if os.path.exists(nice_path):
+        cust_chan_content = open(nice_path, "r").read()
+    else:
+        cust_chan_content = open(os.path.join(here, "new_channel.json"), "r").read()
 
-    tester = ChannelBuilderTester(host, api_port, frontend_port, username, password)
+    tester = ChannelBuilderTester(host, api_port, frontend_port, username, password,
+        referer_host = referer_host)
     tests = [
         ("Create Account", tester.create_fresh_account),
         ("Authenticate Frontend", tester.authenticate_fe),
@@ -250,3 +450,29 @@ if __name__ == "__main__":
 
     for (name, result) in results:
         print(f"{ name }: { result }")
+
+    # --- Library endpoints + server-side ownership ---------------------
+    # Runs the full library matrix (visibility, can_edit flags, owner CRUD,
+    # cross-user 403s, global-library immutability) across two throwaway
+    # accounts, then deletes the test library it created. Skip with
+    # RS_TEST_SKIP_LIBRARY=1.
+    if os.environ.get("RS_TEST_SKIP_LIBRARY", "") == "1":
+        print("\nSkipping library tests (RS_TEST_SKIP_LIBRARY=1).")
+    else:
+        print("\n=== Library endpoints / ownership ===")
+        owner_user = os.environ.get("RS_TEST_LIB_OWNER",
+            f"dataf-agent+libowner-{ uuid.uuid4().hex[:8] }@agentmail.to")
+        other_user = os.environ.get("RS_TEST_LIB_OTHER",
+            f"dataf-agent+libother-{ uuid.uuid4().hex[:8] }@agentmail.to")
+        owner_pw = "LibTester" + uuid.uuid4().hex[:8]
+        other_pw = "LibTester" + uuid.uuid4().hex[:8]
+        owner = ChannelBuilderTester(host, api_port, frontend_port,
+            owner_user, owner_pw, referer_host = referer_host)
+        other = ChannelBuilderTester(host, api_port, frontend_port,
+            other_user, other_pw, referer_host = referer_host)
+        print(f"Creating library test accounts - confirm each from its validation email:\n  { owner_user }\n  { other_user }\n")
+        owner.create_fresh_account()
+        other.create_fresh_account()
+        lib_ok = run_library_suite(owner, other)
+        print(f"\nLibrary suite: { 'PASS' if lib_ok else 'FAIL' }")
+        print("(Cleanup: the suite deleted its own test library. The two accounts above can be left or removed.)")
