@@ -1,6 +1,6 @@
 /// The models employed by Diesel and the db module
 
-use crate::schema::{user_data, front_end_sess_keys, channel_list, roku_sess_keys, display_sess_keys};
+use crate::schema::{user_data, front_end_sess_keys, channel_list, roku_sess_keys, display_sess_keys, library, library_entry};
 use chrono::{DateTime, Utc};
 
 /// The components in common for all session keys (roku and frontend, now)
@@ -137,4 +137,40 @@ pub struct InsertChannelList<'a> {
     pub userid: i32,
     pub name: &'a str,
     pub data: &'a str,
+}
+
+#[derive(Queryable, serde::Serialize)]
+pub struct QueryLibrary {
+    pub id: i32,
+    pub name: String,
+    pub owner_user_id: Option<i32>,
+    pub is_global: bool,
+}
+
+#[derive(Insertable)]
+#[table_name="library"]
+pub struct InsertLibrary<'a> {
+    pub name: &'a str,
+    pub owner_user_id: Option<i32>,
+    pub is_global: bool,
+}
+
+#[derive(Queryable, serde::Serialize)]
+pub struct QueryLibraryEntry {
+    pub id: i32,
+    pub library_id: i32,
+    pub name: String,
+    pub url: String,
+    pub thumbnail_url: Option<String>,
+    pub media_type: String,
+}
+
+#[derive(Insertable)]
+#[table_name="library_entry"]
+pub struct InsertLibraryEntry<'a> {
+    pub library_id: i32,
+    pub name: &'a str,
+    pub url: &'a str,
+    pub thumbnail_url: Option<&'a str>,
+    pub media_type: &'a str,
 }

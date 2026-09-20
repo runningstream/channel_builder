@@ -883,3 +883,71 @@ mod tests{
         println!("{}", reject3);
     }
 }
+
+// This file contains the library API handler functions
+// Append these into api_handlers.rs
+
+pub async fn get_libraries(params: APIParams, sess_info: (String, i32))
+    -> Result<impl Reply, Rejection>
+{
+    trace!("Beginning get_libraries");
+    let (_sess_key, user_id) = sess_info;
+
+    // Run the database action - returns string of JSON array
+    match params.db.please(db::Action::GetLibraries { user_id }).await {
+        Ok(Response::StringResp(val)) => Ok(warp::reply::json(&val)),
+        Ok(resp) => Err(reject::custom(Rejections::db_api_err("GetLibraries", resp))),
+        Err(err) => Err(reject::custom(Rejections::from(err))),
+    }
+}
+
+pub async fn get_library_entries(params: APIParams, sess_info: (String, i32),
+        query: models::GetLibraryEntriesQuery)
+    -> Result<impl Reply, Rejection>
+{
+    trace!("Beginning get_library_entries");
+    let (_sess_key, _user_id) = sess_info;
+    match params.db.please(db::Action::GetLibraryEntries { library_id: query.library_id }).await {
+        Ok(Response::StringResp(val)) => Ok(warp::reply::json(&val)),
+        Ok(resp) => Err(reject::custom(Rejections::db_api_err("GetLibraryEntries", resp))),
+        Err(err) => Err(reject::custom(Rejections::from(err))),
+    }
+}
+
+pub async fn add_library_entry(params: APIParams, sess_info: (String, i32),
+        form: models::AddLibraryEntryForm)
+    -> Result<impl Reply, Rejection>
+{
+    trace!("Beginning add_library_entry");
+    let (_sess_key, user_id) = sess_info;
+
+    match params.db.please(db::Action::AddLibraryEntry {
+        user_id,
+        library_id: form.library_id,
+        name: form.name,
+        url: form.url,
+        media_type: form.media_type,
+        thumbnail_url: form.thumbnail_url,
+    }).await {
+        Ok(Response::Empty) => Ok(warp::reply::html("OK")),
+        Ok(resp) => Err(reject::custom(Rejections::db_api_err("AddLibraryEntry", resp))),
+        Err(err) => Err(reject::custom(Rejections::from(err))),
+    }
+}
+
+pub async fn remove_library_entry(params: APIParams, sess_info: (String, i32),
+        query: models::RemoveLibraryEntryQuery)
+    -> Result<impl Reply, Rejection>
+{
+    trace!("Beginning remove_library_entry");
+    let (_sess_key, user_id) = sess_info;
+
+    match params.db.please(db::Action::RemoveLibraryEntry {
+        user_id,
+        entry_id: query.entry_id,
+    }).await {
+        Ok(Response::Empty) => Ok(warp::reply::html("OK")),
+        Ok(resp) => Err(reject::custom(Rejections::db_api_err("RemoveLibraryEntry", resp))),
+        Err(err) => Err(reject::custom(Rejections::from(err))),
+    }
+}

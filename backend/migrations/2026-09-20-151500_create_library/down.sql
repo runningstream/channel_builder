@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS library_entry;
+DROP TABLE IF EXISTS library;

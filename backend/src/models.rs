@@ -48,3 +48,22 @@ pub struct GetChannelListQuery {
 pub struct ValidateAccountRequest {
     pub val_code: String,
 }
+
+#[derive(Debug,Deserialize,Serialize,Clone)]
+pub struct GetLibraryEntriesQuery {
+    pub library_id: i32,
+}
+
+#[derive(Debug,Deserialize,Serialize,Clone)]
+pub struct AddLibraryEntryForm {
+    pub library_id: i32,
+    pub name: String,
+    pub url: String,
+    pub media_type: String,
+    pub thumbnail_url: Option<String>,
+}
+
+#[derive(Debug,Deserialize,Serialize,Clone)]
+pub struct RemoveLibraryEntryQuery {
+    pub entry_id: i32,
+}

@@ -115,6 +115,10 @@ pub fn build_filters(params: APIParams, cors_origins: Vec<String>, startup_time:
                     .or(api_delete_channel_fe(params.clone()))
                     .or(api_get_active_channel_name_fe(params.clone()))
                     .or(api_refresh_session_di(params.clone()))
+                    .or(api_get_libraries_fe(params.clone()))
+                    .or(api_get_library_entries_fe(params.clone()))
+                    .or(api_add_library_entry_fe(params.clone()))
+                    .or(api_remove_library_entry_fe(params.clone()))
             )
         )
         .recover(api_handlers::handle_rejection)
@@ -675,6 +679,85 @@ APIDocs!{
             .and(validate_session(SessType::Frontend, params))
             .and_then(api_handlers::get_active_channel_name)
     }
+
+APIDocs!{
+    Desc: "List all libraries the user has access to",
+    URL: APIPathV1!("get_libraries_fe"),
+    Sess: APISessType!(FRONTEND),
+    Method: APIMethod!(GET),
+    CORS: APICORS!(true),
+    Data: APIDATA!(),
+
+    fn api_get_libraries_fe(params: APIParams)
+        -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone
+    {
+        api_v1_path("get_libraries_fe")
+            .and(warp::get())
+            .and(add_in(params.clone()))
+            .and(validate_session(SessType::Frontend, params))
+            .and_then(api_handlers::get_libraries)
+    }
+}
+
+APIDocs!{
+    Desc: "Get entries for a specific library",
+    URL: APIPathV1!("get_library_entries_fe"),
+    Sess: APISessType!(FRONTEND),
+    Method: APIMethod!(GET),
+    CORS: APICORS!(true),
+    Data: APIDATA!("library_id integer"),
+
+    fn api_get_library_entries_fe(params: APIParams)
+        -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone
+    {
+        api_v1_path("get_library_entries_fe")
+            .and(warp::get())
+            .and(add_in(params.clone()))
+            .and(validate_session(SessType::Frontend, params))
+            .and(warp::query::<models::GetLibraryEntriesQuery>())
+            .and_then(api_handlers::get_library_entries)
+    }
+}
+
+APIDocs!{
+    Desc: "Add an entry to a library",
+    URL: APIPathV1!("add_library_entry_fe"),
+    Sess: APISessType!(FRONTEND),
+    Method: APIMethod!(POST),
+    CORS: APICORS!(true),
+    Data: APIDATA!("library_id, name, url, media_type, thumbnail_url"),
+
+    fn api_add_library_entry_fe(params: APIParams)
+        -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone
+    {
+        api_v1_path("add_library_entry_fe")
+            .and(warp::post())
+            .and(add_in(params.clone()))
+            .and(validate_session(SessType::Frontend, params))
+            .and(get_form::<models::AddLibraryEntryForm>())
+            .and_then(api_handlers::add_library_entry)
+    }
+}
+
+APIDocs!{
+    Desc: "Remove a library entry",
+    URL: APIPathV1!("remove_library_entry_fe"),
+    Sess: APISessType!(FRONTEND),
+    Method: APIMethod!(DELETE),
+    CORS: APICORS!(true),
+    Data: APIDATA!("entry_id integer"),
+
+    fn api_remove_library_entry_fe(params: APIParams)
+        -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone
+    {
+        api_v1_path("remove_library_entry_fe")
+            .and(warp::delete())
+            .and(add_in(params.clone()))
+            .and(validate_session(SessType::Frontend, params))
+            .and(warp::query::<models::RemoveLibraryEntryQuery>())
+            .and_then(api_handlers::remove_library_entry)
+    }
+}
 }
 
 #[doc(hidden)]

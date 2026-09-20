@@ -13,12 +13,14 @@ use tokio::sync::oneshot;
 use chrono::Utc;
 use thiserror::Error;
 use crate::diesel::{QueryDsl, ExpressionMethods};
-use crate::schema::{user_data, channel_list, front_end_sess_keys, roku_sess_keys, display_sess_keys};
+use crate::schema::{user_data, channel_list, front_end_sess_keys, roku_sess_keys, display_sess_keys, library, library_entry};
 use crate::schema::user_data::dsl::user_data as ud_dsl;
 use crate::schema::channel_list::dsl::channel_list as cl_dsl;
 use crate::schema::front_end_sess_keys::dsl::front_end_sess_keys as fesk_dsl;
 use crate::schema::roku_sess_keys::dsl::roku_sess_keys as rosk_dsl;
 use crate::schema::display_sess_keys::dsl::display_sess_keys as disk_dsl;
+use crate::schema::library::dsl::library as lib_dsl;
+use crate::schema::library_entry::dsl::library_entry as le_dsl;
 
 embed_migrations!();
 
@@ -146,6 +148,10 @@ pub enum Action {
     DeleteChannel { user_id: i32, list_name: String },
     RenameChannel { user_id: i32, list_name: String, new_list_name: String },
     GetStatusReport,
+    GetLibraries { user_id: i32 },
+    GetLibraryEntries { library_id: i32 },
+    AddLibraryEntry { user_id: i32, library_id: i32, name: String, url: String, media_type: String, thumbnail_url: Option<String> },
+    RemoveLibraryEntry { user_id: i32, entry_id: i32 },
     Shutdown,
 }
 
@@ -270,6 +276,14 @@ impl Db {
                     Self::rename_channel(&dat, &mut s_r, user_id, list_name, new_list_name),
                 Action::GetStatusReport =>
                     Self::get_status_report(&mut s_r),
+                Action::GetLibraries { user_id } =>
+                    Self::get_libraries(&dat, user_id),
+                Action::GetLibraryEntries { library_id } =>
+                    Self::get_library_entries(&dat, library_id),
+                Action::AddLibraryEntry { user_id, library_id, name, url, media_type, thumbnail_url } =>
+                    Self::add_library_entry(&dat, user_id, library_id, name, url, media_type, thumbnail_url),
+                Action::RemoveLibraryEntry { user_id, entry_id } =>
+                    Self::remove_library_entry(&dat, user_id, entry_id),
                 Action::Shutdown =>
                     { keep_going = false; Ok(Response::Shutdown) },
             };
@@ -751,5 +765,54 @@ impl Db {
         s_r.get_status_report += 1;
 
         Ok(Response::StatusReport(*s_r))
+    }
+
+    fn get_libraries(dat: &InThreadData, user_id: i32)
+        -> Result<Response, DBError>
+    {
+        let results = lib_dsl
+            .filter(library::is_global.eq(true))
+            .or_filter(library::owner_user_id.eq(user_id))
+            .load::<db_models::QueryLibrary>(&dat.db_conn)?;
+
+        Ok(Response::StringResp(serde_json::to_string(&results)?))
+    }
+
+    fn get_library_entries(dat: &InThreadData, library_id: i32)
+        -> Result<Response, DBError>
+    {
+        let results = le_dsl
+            .filter(library_entry::library_id.eq(library_id))
+            .load::<db_models::QueryLibraryEntry>(&dat.db_conn)?;
+
+        Ok(Response::StringResp(serde_json::to_string(&results)?))
+    }
+
+    fn add_library_entry(dat: &InThreadData, _user_id: i32, library_id: i32,
+            name: String, url: String, media_type: String, thumbnail_url: Option<String>)
+        -> Result<Response, DBError>
+    {
+        let new_entry = db_models::InsertLibraryEntry {
+            library_id,
+            name: &name,
+            url: &url,
+            thumbnail_url: thumbnail_url.as_deref(),
+            media_type: &media_type,
+        };
+
+        diesel::insert_into(library_entry::table)
+            .values(&new_entry)
+            .execute(&dat.db_conn)?;
+
+        Ok(Response::Empty)
+    }
+
+    fn remove_library_entry(dat: &InThreadData, _user_id: i32, entry_id: i32)
+        -> Result<Response, DBError>
+    {
+        diesel::delete(le_dsl.filter(library_entry::id.eq(entry_id)))
+            .execute(&dat.db_conn)?;
+
+        Ok(Response::Empty)
     }
 }
