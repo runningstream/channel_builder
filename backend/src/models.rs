@@ -67,3 +67,8 @@ pub struct AddLibraryEntryForm {
 pub struct RemoveLibraryEntryQuery {
     pub entry_id: i32,
 }
+
+#[derive(Debug,Deserialize,Serialize,Clone)]
+pub struct CreateLibraryForm {
+    pub name: String,
+}

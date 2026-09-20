@@ -17,7 +17,7 @@ pub enum Rejections {
     InvalidUserLookup, InvalidUserNonValidated,
     InvalidPassword, InvalidSession, InvalidEmailAddr,
     InvalidValidationCode, InvalidOriginOrReferer,
-    InvalidRefreshSessionType,
+    InvalidRefreshSessionType, LibraryAccessDenied,
     // System Problems
     ErrorInternal(String), ErrorFromPWHash(PWHashError),
 
@@ -799,7 +799,8 @@ pub async fn handle_rejection(err: Rejection)
             Some(Rejections::InvalidUserNonValidated) |
             Some(Rejections::InvalidSession) |
             Some(Rejections::InvalidEmailAddr) |
-            Some(Rejections::InvalidValidationCode)
+            Some(Rejections::InvalidValidationCode) |
+            Some(Rejections::LibraryAccessDenied)
             => {
                 code = StatusCode::FORBIDDEN;
                 message = "Forbidden";
@@ -906,10 +907,11 @@ pub async fn get_library_entries(params: APIParams, sess_info: (String, i32),
     -> Result<impl Reply, Rejection>
 {
     trace!("Beginning get_library_entries");
-    let (_sess_key, _user_id) = sess_info;
-    match params.db.please(db::Action::GetLibraryEntries { library_id: query.library_id }).await {
+    let (_sess_key, user_id) = sess_info;
+    match params.db.please(db::Action::GetLibraryEntries { user_id, library_id: query.library_id }).await {
         Ok(Response::StringResp(val)) => Ok(warp::reply::json(&val)),
         Ok(resp) => Err(reject::custom(Rejections::db_api_err("GetLibraryEntries", resp))),
+        Err(DBError::LibraryAccessDenied) => Err(reject::custom(Rejections::LibraryAccessDenied)),
         Err(err) => Err(reject::custom(Rejections::from(err))),
     }
 }
@@ -931,6 +933,7 @@ pub async fn add_library_entry(params: APIParams, sess_info: (String, i32),
     }).await {
         Ok(Response::Empty) => Ok(warp::reply::html("OK")),
         Ok(resp) => Err(reject::custom(Rejections::db_api_err("AddLibraryEntry", resp))),
+        Err(DBError::LibraryAccessDenied) => Err(reject::custom(Rejections::LibraryAccessDenied)),
         Err(err) => Err(reject::custom(Rejections::from(err))),
     }
 }
@@ -948,6 +951,24 @@ pub async fn remove_library_entry(params: APIParams, sess_info: (String, i32),
     }).await {
         Ok(Response::Empty) => Ok(warp::reply::html("OK")),
         Ok(resp) => Err(reject::custom(Rejections::db_api_err("RemoveLibraryEntry", resp))),
+        Err(DBError::LibraryAccessDenied) => Err(reject::custom(Rejections::LibraryAccessDenied)),
+        Err(err) => Err(reject::custom(Rejections::from(err))),
+    }
+}
+
+pub async fn create_library(params: APIParams, sess_info: (String, i32),
+        form: models::CreateLibraryForm)
+    -> Result<impl Reply, Rejection>
+{
+    trace!("Beginning create_library");
+    let (_sess_key, user_id) = sess_info;
+
+    match params.db.please(db::Action::CreateLibrary {
+        user_id,
+        name: form.name,
+    }).await {
+        Ok(Response::Empty) => Ok(warp::reply::html("OK")),
+        Ok(resp) => Err(reject::custom(Rejections::db_api_err("CreateLibrary", resp))),
         Err(err) => Err(reject::custom(Rejections::from(err))),
     }
 }

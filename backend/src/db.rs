@@ -36,6 +36,9 @@ pub enum DBError {
         #[from]
         source: serde_json::Error,
     },
+
+    #[error("not permitted to access this library")]
+    LibraryAccessDenied,
     #[error("error getting result from database thread: {source}")]
     ThreadResponseFailure { 
         #[from]
@@ -149,9 +152,10 @@ pub enum Action {
     RenameChannel { user_id: i32, list_name: String, new_list_name: String },
     GetStatusReport,
     GetLibraries { user_id: i32 },
-    GetLibraryEntries { library_id: i32 },
+    GetLibraryEntries { user_id: i32, library_id: i32 },
     AddLibraryEntry { user_id: i32, library_id: i32, name: String, url: String, media_type: String, thumbnail_url: Option<String> },
     RemoveLibraryEntry { user_id: i32, entry_id: i32 },
+    CreateLibrary { user_id: i32, name: String },
     Shutdown,
 }
 
@@ -278,12 +282,14 @@ impl Db {
                     Self::get_status_report(&mut s_r),
                 Action::GetLibraries { user_id } =>
                     Self::get_libraries(&dat, user_id),
-                Action::GetLibraryEntries { library_id } =>
-                    Self::get_library_entries(&dat, library_id),
+                Action::GetLibraryEntries { user_id, library_id } =>
+                    Self::get_library_entries(&dat, user_id, library_id),
                 Action::AddLibraryEntry { user_id, library_id, name, url, media_type, thumbnail_url } =>
                     Self::add_library_entry(&dat, user_id, library_id, name, url, media_type, thumbnail_url),
                 Action::RemoveLibraryEntry { user_id, entry_id } =>
                     Self::remove_library_entry(&dat, user_id, entry_id),
+                Action::CreateLibrary { user_id, name } =>
+                    Self::create_library(&dat, user_id, name),
                 Action::Shutdown =>
                     { keep_going = false; Ok(Response::Shutdown) },
             };
@@ -775,12 +781,31 @@ impl Db {
             .or_filter(library::owner_user_id.eq(user_id))
             .load::<db_models::QueryLibrary>(&dat.db_conn)?;
 
-        Ok(Response::StringResp(serde_json::to_string(&results)?))
+        // Only the owner of a private library can edit it. The global
+        // library (no owner) is editable by nobody.
+        let views: Vec<db_models::QueryLibraryView> = results.into_iter().map(|lib|
+            db_models::QueryLibraryView {
+                id: lib.id,
+                name: lib.name,
+                owner_user_id: lib.owner_user_id,
+                is_global: lib.is_global,
+                can_edit: !lib.is_global && lib.owner_user_id == Some(user_id),
+            }).collect();
+
+        Ok(Response::StringResp(serde_json::to_string(&views)?))
     }
 
-    fn get_library_entries(dat: &InThreadData, library_id: i32)
+    fn get_library_entries(dat: &InThreadData, user_id: i32, library_id: i32)
         -> Result<Response, DBError>
     {
+        let lib = lib_dsl
+            .filter(library::id.eq(library_id))
+            .first::<db_models::QueryLibrary>(&dat.db_conn)
+            .map_err(|_| DBError::LibraryAccessDenied)?;
+        if !(lib.is_global || lib.owner_user_id == Some(user_id)) {
+            return Err(DBError::LibraryAccessDenied);
+        }
+
         let results = le_dsl
             .filter(library_entry::library_id.eq(library_id))
             .load::<db_models::QueryLibraryEntry>(&dat.db_conn)?;
@@ -788,10 +813,20 @@ impl Db {
         Ok(Response::StringResp(serde_json::to_string(&results)?))
     }
 
-    fn add_library_entry(dat: &InThreadData, _user_id: i32, library_id: i32,
+    fn add_library_entry(dat: &InThreadData, user_id: i32, library_id: i32,
             name: String, url: String, media_type: String, thumbnail_url: Option<String>)
         -> Result<Response, DBError>
     {
+        // Only the owner of a library may add entries to it. The global
+        // library (no owner) cannot be modified by anyone.
+        let lib = lib_dsl
+            .filter(library::id.eq(library_id))
+            .first::<db_models::QueryLibrary>(&dat.db_conn)
+            .map_err(|_| DBError::LibraryAccessDenied)?;
+        if lib.owner_user_id != Some(user_id) {
+            return Err(DBError::LibraryAccessDenied);
+        }
+
         let new_entry = db_models::InsertLibraryEntry {
             library_id,
             name: &name,
@@ -807,10 +842,39 @@ impl Db {
         Ok(Response::Empty)
     }
 
-    fn remove_library_entry(dat: &InThreadData, _user_id: i32, entry_id: i32)
+    fn remove_library_entry(dat: &InThreadData, user_id: i32, entry_id: i32)
         -> Result<Response, DBError>
     {
+        // Only the owner of the entry's library may remove entries from it.
+        let entry = le_dsl
+            .filter(library_entry::id.eq(entry_id))
+            .first::<db_models::QueryLibraryEntry>(&dat.db_conn)
+            .map_err(|_| DBError::LibraryAccessDenied)?;
+        let lib = lib_dsl
+            .filter(library::id.eq(entry.library_id))
+            .first::<db_models::QueryLibrary>(&dat.db_conn)
+            .map_err(|_| DBError::LibraryAccessDenied)?;
+        if lib.owner_user_id != Some(user_id) {
+            return Err(DBError::LibraryAccessDenied);
+        }
+
         diesel::delete(le_dsl.filter(library_entry::id.eq(entry_id)))
+            .execute(&dat.db_conn)?;
+
+        Ok(Response::Empty)
+    }
+
+    fn create_library(dat: &InThreadData, user_id: i32, name: String)
+        -> Result<Response, DBError>
+    {
+        let new_lib = db_models::InsertLibrary {
+            name: &name,
+            owner_user_id: Some(user_id),
+            is_global: false,
+        };
+
+        diesel::insert_into(library::table)
+            .values(&new_lib)
             .execute(&dat.db_conn)?;
 
         Ok(Response::Empty)

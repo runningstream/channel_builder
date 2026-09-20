@@ -147,6 +147,15 @@ pub struct QueryLibrary {
     pub is_global: bool,
 }
 
+#[derive(serde::Serialize)]
+pub struct QueryLibraryView {
+    pub id: i32,
+    pub name: String,
+    pub owner_user_id: Option<i32>,
+    pub is_global: bool,
+    pub can_edit: bool,
+}
+
 #[derive(Insertable)]
 #[table_name="library"]
 pub struct InsertLibrary<'a> {
