@@ -2,6 +2,22 @@
 
 The backend of Channel Builder.
 
+## Current state (2026-09-20)
+
+- **Accounts** - email + password with email validation on first sign-up.
+- **Sessions** - three kinds: frontend (read/write), Roku (read-only), display.
+- **Channel lists** - many named lists per user, one active channel; Roku
+  devices pull the active channel as XML.
+- **Library** (new) - a generic media library with server-enforced ownership:
+  - only the owner can add/remove entries or delete a library
+  - the Global Library (`owner_user_id` NULL, `is_global` true) is visible to
+    everyone and editable by no one
+  - `get_libraries_fe` returns a `can_edit` flag per library so the frontend
+    can hide edit controls
+  - endpoints: `get_libraries_fe`, `get_library_entries_fe`,
+    `add_library_entry_fe`, `remove_library_entry_fe`, `create_library_fe`,
+    `remove_library_fe` (all frontend-session, CORS like the other `_fe` routes)
+
 # Running
 
 Use ansible to setup the server...  Then:
