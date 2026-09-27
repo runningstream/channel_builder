@@ -888,10 +888,11 @@ mod tests{
 // This file contains the library API handler functions
 // Append these into api_handlers.rs
 
-pub async fn get_libraries(params: APIParams, sess_info: (String, i32))
+pub async fn get_libraries(sess_type: SessType, params: APIParams,
+        sess_info: (String, i32))
     -> Result<impl Reply, Rejection>
 {
-    trace!("Beginning get_libraries");
+    trace!("Beginning get_libraries {:?}", sess_type);
     let (_sess_key, user_id) = sess_info;
 
     // Run the database action - returns string of JSON array
@@ -902,11 +903,11 @@ pub async fn get_libraries(params: APIParams, sess_info: (String, i32))
     }
 }
 
-pub async fn get_library_entries(params: APIParams, sess_info: (String, i32),
-        query: models::GetLibraryEntriesQuery)
+pub async fn get_library_entries(sess_type: SessType, params: APIParams,
+        sess_info: (String, i32), query: models::GetLibraryEntriesQuery)
     -> Result<impl Reply, Rejection>
 {
-    trace!("Beginning get_library_entries");
+    trace!("Beginning get_library_entries {:?}", sess_type);
     let (_sess_key, user_id) = sess_info;
     match params.db.please(db::Action::GetLibraryEntries { user_id, library_id: query.library_id }).await {
         Ok(Response::StringResp(val)) => Ok(warp::reply::json(&val)),
@@ -916,11 +917,11 @@ pub async fn get_library_entries(params: APIParams, sess_info: (String, i32),
     }
 }
 
-pub async fn add_library_entry(params: APIParams, sess_info: (String, i32),
-        form: models::AddLibraryEntryForm)
+pub async fn add_library_entry(sess_type: SessType, params: APIParams,
+        sess_info: (String, i32), form: models::AddLibraryEntryForm)
     -> Result<impl Reply, Rejection>
 {
-    trace!("Beginning add_library_entry");
+    trace!("Beginning add_library_entry {:?}", sess_type);
     let (_sess_key, user_id) = sess_info;
 
     match params.db.please(db::Action::AddLibraryEntry {
@@ -938,11 +939,11 @@ pub async fn add_library_entry(params: APIParams, sess_info: (String, i32),
     }
 }
 
-pub async fn remove_library_entry(params: APIParams, sess_info: (String, i32),
-        query: models::RemoveLibraryEntryQuery)
+pub async fn remove_library_entry(sess_type: SessType, params: APIParams,
+        sess_info: (String, i32), query: models::RemoveLibraryEntryQuery)
     -> Result<impl Reply, Rejection>
 {
-    trace!("Beginning remove_library_entry");
+    trace!("Beginning remove_library_entry {:?}", sess_type);
     let (_sess_key, user_id) = sess_info;
 
     match params.db.please(db::Action::RemoveLibraryEntry {
@@ -956,11 +957,11 @@ pub async fn remove_library_entry(params: APIParams, sess_info: (String, i32),
     }
 }
 
-pub async fn create_library(params: APIParams, sess_info: (String, i32),
-        form: models::CreateLibraryForm)
+pub async fn create_library(sess_type: SessType, params: APIParams,
+        sess_info: (String, i32), form: models::CreateLibraryForm)
     -> Result<impl Reply, Rejection>
 {
-    trace!("Beginning create_library");
+    trace!("Beginning create_library {:?}", sess_type);
     let (_sess_key, user_id) = sess_info;
 
     match params.db.please(db::Action::CreateLibrary {
@@ -973,11 +974,11 @@ pub async fn create_library(params: APIParams, sess_info: (String, i32),
     }
 }
 
-pub async fn remove_library(params: APIParams, sess_info: (String, i32),
-        query: models::RemoveLibraryQuery)
+pub async fn remove_library(sess_type: SessType, params: APIParams,
+        sess_info: (String, i32), query: models::RemoveLibraryQuery)
     -> Result<impl Reply, Rejection>
 {
-    trace!("Beginning remove_library");
+    trace!("Beginning remove_library {:?}", sess_type);
     let (_sess_key, user_id) = sess_info;
 
     match params.db.please(db::Action::RemoveLibrary {

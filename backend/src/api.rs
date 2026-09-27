@@ -695,6 +695,7 @@ APIDocs!{
     {
         api_v1_path("get_libraries_fe")
             .and(warp::get())
+            .and(add_in(SessType::Frontend))
             .and(add_in(params.clone()))
             .and(validate_session(SessType::Frontend, params))
             .and_then(api_handlers::get_libraries)
@@ -714,6 +715,7 @@ APIDocs!{
     {
         api_v1_path("get_library_entries_fe")
             .and(warp::get())
+            .and(add_in(SessType::Frontend))
             .and(add_in(params.clone()))
             .and(validate_session(SessType::Frontend, params))
             .and(warp::query::<models::GetLibraryEntriesQuery>())
@@ -734,6 +736,7 @@ APIDocs!{
     {
         api_v1_path("add_library_entry_fe")
             .and(warp::post())
+            .and(add_in(SessType::Frontend))
             .and(add_in(params.clone()))
             .and(validate_session(SessType::Frontend, params))
             .and(get_form::<models::AddLibraryEntryForm>())
@@ -754,6 +757,7 @@ APIDocs!{
     {
         api_v1_path("remove_library_entry_fe")
             .and(warp::delete())
+            .and(add_in(SessType::Frontend))
             .and(add_in(params.clone()))
             .and(validate_session(SessType::Frontend, params))
             .and(warp::query::<models::RemoveLibraryEntryQuery>())
@@ -774,6 +778,7 @@ APIDocs!{
     {
         api_v1_path("create_library_fe")
             .and(warp::post())
+            .and(add_in(SessType::Frontend))
             .and(add_in(params.clone()))
             .and(validate_session(SessType::Frontend, params))
             .and(get_form::<models::CreateLibraryForm>())
@@ -794,6 +799,7 @@ APIDocs!{
     {
         api_v1_path("remove_library_fe")
             .and(warp::delete())
+            .and(add_in(SessType::Frontend))
             .and(add_in(params.clone()))
             .and(validate_session(SessType::Frontend, params))
             .and(warp::query::<models::RemoveLibraryQuery>())
