@@ -123,6 +123,12 @@ pub struct InnerStatusReport {
     get_active_channel_fe: u32,
     get_active_channel_ro: u32,
     get_active_channel_di: u32,
+    get_libraries: u32,
+    get_library_entries: u32,
+    add_library_entry: u32,
+    remove_library_entry: u32,
+    create_library: u32,
+    remove_library: u32,
 
     // Other status
     auth_success: u32,
@@ -167,6 +173,13 @@ impl fmt::Display for InnerStatusReport {
                 "      Frontend: {}\n",
                 "      Roku: {}\n",
                 "      Display: {}\n",
+                "  Library Stuff:\n",
+                "    Get Libraries: {}\n",
+                "    Get Library Entries: {}\n",
+                "    Add Library Entry: {}\n",
+                "    Remove Library Entry: {}\n",
+                "    Create Library: {}\n",
+                "    Remove Library: {}\n",
                 "  Status Reports: {}\n"
                 ),
             self.authenticate, self.auth_success,
@@ -187,6 +200,9 @@ impl fmt::Display for InnerStatusReport {
             self.get_active_channel_name,
             self.get_active_channel, self.get_active_channel_fe,
             self.get_active_channel_ro, self.get_active_channel_di,
+            self.get_libraries, self.get_library_entries,
+            self.add_library_entry, self.remove_library_entry,
+            self.create_library, self.remove_library,
             self.get_status_report
         )
     }
@@ -893,6 +909,10 @@ pub async fn get_libraries(sess_type: SessType, params: APIParams,
     -> Result<impl Reply, Rejection>
 {
     trace!("Beginning get_libraries {:?}", sess_type);
+    params.a_s_r.mod_report(|report: &mut InnerStatusReport| {
+        report.get_libraries += 1;
+    }).await;
+
     let (_sess_key, user_id) = sess_info;
 
     // Run the database action - returns string of JSON array
@@ -908,6 +928,10 @@ pub async fn get_library_entries(sess_type: SessType, params: APIParams,
     -> Result<impl Reply, Rejection>
 {
     trace!("Beginning get_library_entries {:?}", sess_type);
+    params.a_s_r.mod_report(|report: &mut InnerStatusReport| {
+        report.get_library_entries += 1;
+    }).await;
+
     let (_sess_key, user_id) = sess_info;
     match params.db.please(db::Action::GetLibraryEntries { user_id, library_id: query.library_id }).await {
         Ok(Response::StringResp(val)) => Ok(warp::reply::json(&val)),
@@ -922,6 +946,10 @@ pub async fn add_library_entry(sess_type: SessType, params: APIParams,
     -> Result<impl Reply, Rejection>
 {
     trace!("Beginning add_library_entry {:?}", sess_type);
+    params.a_s_r.mod_report(|report: &mut InnerStatusReport| {
+        report.add_library_entry += 1;
+    }).await;
+
     let (_sess_key, user_id) = sess_info;
 
     match params.db.please(db::Action::AddLibraryEntry {
@@ -944,6 +972,10 @@ pub async fn remove_library_entry(sess_type: SessType, params: APIParams,
     -> Result<impl Reply, Rejection>
 {
     trace!("Beginning remove_library_entry {:?}", sess_type);
+    params.a_s_r.mod_report(|report: &mut InnerStatusReport| {
+        report.remove_library_entry += 1;
+    }).await;
+
     let (_sess_key, user_id) = sess_info;
 
     match params.db.please(db::Action::RemoveLibraryEntry {
@@ -962,6 +994,10 @@ pub async fn create_library(sess_type: SessType, params: APIParams,
     -> Result<impl Reply, Rejection>
 {
     trace!("Beginning create_library {:?}", sess_type);
+    params.a_s_r.mod_report(|report: &mut InnerStatusReport| {
+        report.create_library += 1;
+    }).await;
+
     let (_sess_key, user_id) = sess_info;
 
     match params.db.please(db::Action::CreateLibrary {
@@ -979,6 +1015,10 @@ pub async fn remove_library(sess_type: SessType, params: APIParams,
     -> Result<impl Reply, Rejection>
 {
     trace!("Beginning remove_library {:?}", sess_type);
+    params.a_s_r.mod_report(|report: &mut InnerStatusReport| {
+        report.remove_library += 1;
+    }).await;
+
     let (_sess_key, user_id) = sess_info;
 
     match params.db.please(db::Action::RemoveLibrary {
