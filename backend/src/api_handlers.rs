@@ -918,8 +918,8 @@ pub async fn get_libraries(sess_type: SessType, params: APIParams,
     // Run the database action - returns string of JSON array
     match params.db.please(db::Action::GetLibraries { user_id }).await {
         Ok(Response::StringResp(val)) => Ok(warp::reply::json(&val)),
-        Ok(resp) => Err(reject::custom(Rejections::db_api_err("GetLibraries", resp))),
-        Err(err) => Err(reject::custom(Rejections::from(err))),
+        Ok(resp) => Err(Rejections::db_api_err("GetLibraries", resp).into()),
+        Err(err) => Err(Rejections::from(err).into()),
     }
 }
 
@@ -935,9 +935,9 @@ pub async fn get_library_entries(sess_type: SessType, params: APIParams,
     let (_sess_key, user_id) = sess_info;
     match params.db.please(db::Action::GetLibraryEntries { user_id, library_id: query.library_id }).await {
         Ok(Response::StringResp(val)) => Ok(warp::reply::json(&val)),
-        Ok(resp) => Err(reject::custom(Rejections::db_api_err("GetLibraryEntries", resp))),
-        Err(DBError::LibraryAccessDenied) => Err(reject::custom(Rejections::LibraryAccessDenied)),
-        Err(err) => Err(reject::custom(Rejections::from(err))),
+        Ok(resp) => Err(Rejections::db_api_err("GetLibraryEntries", resp).into()),
+        Err(DBError::LibraryAccessDenied) => Err(Rejections::LibraryAccessDenied.into()),
+        Err(err) => Err(Rejections::from(err).into()),
     }
 }
 
@@ -960,10 +960,10 @@ pub async fn add_library_entry(sess_type: SessType, params: APIParams,
         media_type: form.media_type,
         thumbnail_url: form.thumbnail_url,
     }).await {
-        Ok(Response::Empty) => Ok(warp::reply::html("OK")),
-        Ok(resp) => Err(reject::custom(Rejections::db_api_err("AddLibraryEntry", resp))),
-        Err(DBError::LibraryAccessDenied) => Err(reject::custom(Rejections::LibraryAccessDenied)),
-        Err(err) => Err(reject::custom(Rejections::from(err))),
+        Ok(Response::Empty) => Ok(StatusCode::OK),
+        Ok(resp) => Err(Rejections::db_api_err("AddLibraryEntry", resp).into()),
+        Err(DBError::LibraryAccessDenied) => Err(Rejections::LibraryAccessDenied.into()),
+        Err(err) => Err(Rejections::from(err).into()),
     }
 }
 
@@ -982,10 +982,10 @@ pub async fn remove_library_entry(sess_type: SessType, params: APIParams,
         user_id,
         entry_id: query.entry_id,
     }).await {
-        Ok(Response::Empty) => Ok(warp::reply::html("OK")),
-        Ok(resp) => Err(reject::custom(Rejections::db_api_err("RemoveLibraryEntry", resp))),
-        Err(DBError::LibraryAccessDenied) => Err(reject::custom(Rejections::LibraryAccessDenied)),
-        Err(err) => Err(reject::custom(Rejections::from(err))),
+        Ok(Response::Empty) => Ok(StatusCode::OK),
+        Ok(resp) => Err(Rejections::db_api_err("RemoveLibraryEntry", resp).into()),
+        Err(DBError::LibraryAccessDenied) => Err(Rejections::LibraryAccessDenied.into()),
+        Err(err) => Err(Rejections::from(err).into()),
     }
 }
 
@@ -1004,9 +1004,9 @@ pub async fn create_library(sess_type: SessType, params: APIParams,
         user_id,
         name: form.name,
     }).await {
-        Ok(Response::Empty) => Ok(warp::reply::html("OK")),
-        Ok(resp) => Err(reject::custom(Rejections::db_api_err("CreateLibrary", resp))),
-        Err(err) => Err(reject::custom(Rejections::from(err))),
+        Ok(Response::Empty) => Ok(StatusCode::OK),
+        Ok(resp) => Err(Rejections::db_api_err("CreateLibrary", resp).into()),
+        Err(err) => Err(Rejections::from(err).into()),
     }
 }
 
@@ -1025,9 +1025,9 @@ pub async fn remove_library(sess_type: SessType, params: APIParams,
         user_id,
         library_id: query.library_id,
     }).await {
-        Ok(Response::Empty) => Ok(warp::reply::html("OK")),
-        Ok(resp) => Err(reject::custom(Rejections::db_api_err("RemoveLibrary", resp))),
-        Err(DBError::LibraryAccessDenied) => Err(reject::custom(Rejections::LibraryAccessDenied)),
-        Err(err) => Err(reject::custom(Rejections::from(err))),
+        Ok(Response::Empty) => Ok(StatusCode::OK),
+        Ok(resp) => Err(Rejections::db_api_err("RemoveLibrary", resp).into()),
+        Err(DBError::LibraryAccessDenied) => Err(Rejections::LibraryAccessDenied.into()),
+        Err(err) => Err(Rejections::from(err).into()),
     }
 }
